@@ -1,6 +1,11 @@
-# ocffs - A Friendly (Virtual) Filesystem for ownCloud
+# ocffs - A friendly Fuse Filesystem for ownCloud
 
 Wait, did they say 'virtual files' or 'virtual file system'?
+
+Guess what this does:
+
+    setfattr -n user.owncloud.virtual -v 1 Photos/Paris.jpg
+    setfattr -n user.owncloud.virtual -v 0 Photos/Paris.jpg
 
 ## Background
 
@@ -59,7 +64,7 @@ OCFFS is based on FUSE, a user land filesystem abstraction available in Linux (a
 For the Windows Desktop the Dokan project provides a FUSE-compatible API (also untested).
 The first prototype requires python3 and interacts with the client. Implementations for speed would be built into the desktop client (using C or C++ then).
 
-The first draft is available at https://github.com/jnweiger/ocffs - please file issues there.
+The first draft is available at https://github.com/jnweiger/OCFFS - please file issues there.
 
 ## Implementation details
 

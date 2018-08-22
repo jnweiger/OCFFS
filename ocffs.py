@@ -7,6 +7,14 @@
 #
 # Usage:
 # ocffs.py syncfolder [otherfolder]
+#
+# 2018-08-19, jw 0.1 -- initial draft.
+# 2018-08-20, jw 0.2 -- xattr can be used. readdir() no longer sees placeholders.
+# 2018-08-21, jw 0.3 -- _oc_stat() done. all placeholders properly hidden.
+# 2018-08-22, jw 0.4 -- switching virtial physical via xattr user.owncloud.virtual works!
+#
+# TODO: read/write
+
 
 from __future__ import with_statement, print_function
 
@@ -16,6 +24,7 @@ import psutil, errno, sqlite3, time, socket
 # from fuse import FUSE, FuseOSError, Operations
 from fusepy import FUSE, FuseOSError, Operations, fuse_get_context
 
+_version_ = '0.4'
 
 class OCFFS(Operations):
     """
@@ -60,7 +69,7 @@ class OCFFS(Operations):
             self.db = sqlite3.connect(self.dbfile)
 
     def __enter__(self):
-        print("OCFFS entering ...", file=sys.stderr)
+        print("OCFFS v%s starting ..." % (_version_), file=sys.stderr)
         return self
 
     def __exit__(self, type, value, traceback):         # better than __del__ but requires a with in main below.
