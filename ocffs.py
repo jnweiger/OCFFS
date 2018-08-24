@@ -41,6 +41,7 @@ class OCFFS(Operations):
         self.root = root
         self.mountpoint = mountpoint
         self.vfd = {}           # virtual file descriptor table.
+        self.blocksize = 4096   # our read will return blocks of this size.
         # find the owncloud db file:
         self.dbfile = None
         for dbfile in os.listdir(root):
@@ -284,11 +285,17 @@ class OCFFS(Operations):
         return os.mkdir(rpath, mode)
 
     def statfs(self, path):
+        """
+        CAUTION: what we return here as bsize, is the
+        minimum block size that we have to return with read.
+        """
         rpath = self._oc_path(path)[0]
         stv = os.statvfs(rpath)
-        return dict((key, getattr(stv, key)) for key in ('f_bavail', 'f_bfree',
+        ret = dict((key, getattr(stv, key)) for key in ('f_bavail', 'f_bfree',
             'f_blocks', 'f_bsize', 'f_favail', 'f_ffree', 'f_files', 'f_flag',
             'f_frsize', 'f_namemax'))
+        ret['f_bsize'] = self.blocksize
+        return ret
 
     def unlink(self, path):
         return os.unlink(self._oc_path(path)[0])
@@ -341,6 +348,18 @@ class OCFFS(Operations):
         return os.open(rpath, os.O_WRONLY | os.O_CREAT, mode)
 
     def read(self, path, length, offset, fh):
+        """
+        CAUTION: This read has different semantics than the read system call.
+
+        Read gets called with length as a multiple of our self.blocksize,
+        assuming that our statfs() was called, to inform the kernel.
+
+        If read returns less than one blocksize, the same read is retried once, then
+        the kernel assumes that this is the end of the file and calls flush and release.
+
+        The kernel advance offset only, if multiples of blocksize are returned by read.
+        We are a filesystem, where the world is defined in blocks, not bytes.
+        """
         print("+ read(%s, %s, %s, %s)" % (path, length, offset, fh), file=sys.stderr)
         if fh in self.vfd:
             if offset < 100:

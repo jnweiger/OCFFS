@@ -100,6 +100,7 @@ class Passthrough(Operations):
     # ============
 
     def open(self, path, flags):
+        return 0
         full_path = self._full_path(path)
         return os.open(full_path, flags)
 
@@ -108,8 +109,12 @@ class Passthrough(Operations):
         return os.open(full_path, os.O_WRONLY | os.O_CREAT, mode)
 
     def read(self, path, length, offset, fh):
-        os.lseek(fh, offset, os.SEEK_SET)
-        return os.read(fh, length)
+        print("+ read(%s, %s, %s, %s)" % (path, length, offset, fh), file=sys.stderr)
+        # os.lseek(fh, offset, os.SEEK_SET)
+        # return os.read(fh, length)
+        if offset < 2000:
+            return b"Go get some coffee\n"
+        return b""
 
     def write(self, path, buf, offset, fh):
         os.lseek(fh, offset, os.SEEK_SET)
@@ -121,9 +126,11 @@ class Passthrough(Operations):
             f.truncate(length)
 
     def flush(self, path, fh):
+        return 0
         return os.fsync(fh)
 
     def release(self, path, fh):
+        return 0
         return os.close(fh)
 
     def fsync(self, path, fdatasync, fh):
@@ -164,7 +171,7 @@ class Passthrough(Operations):
 
 
 def main(mountpoint, root):
-    FUSE(Passthrough(root), mountpoint, nothreads=True, foreground=True)
+    FUSE(Passthrough(root), mountpoint, nothreads=True, foreground=True, debug=True)
 
 if __name__ == '__main__':
     main(sys.argv[2], sys.argv[1])
