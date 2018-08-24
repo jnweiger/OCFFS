@@ -40,6 +40,7 @@ class OCFFS(Operations):
     def __init__(self, root, mountpoint=None):
         self.root = root
         self.mountpoint = mountpoint
+        self.vfd = {}           # virtual file descriptor table.
         # find the owncloud db file:
         self.dbfile = None
         for dbfile in os.listdir(root):
@@ -126,20 +127,20 @@ class OCFFS(Operations):
             euid = p.uids().effective
             uid = p.uids().real
             if db_uid == euid or db_uid == uid:
-                # print("pid=%s (%s) match db_uid=%s euid=%s uid=%s" % (p.pid, p.name(), db_uid,euid,uid), file=sys.stderr)
+                # print("+ pid=%s (%s) match db_uid=%s euid=%s uid=%s" % (p.pid, p.name(), db_uid,euid,uid), file=sys.stderr)
                 try:
                     for f in p.open_files():
                         if f.path == db_path:
                             if p.pid == os.getpid():
-                                print("FIXME: saw myself on the database. Harmless, but should not happen.", file=sys.stderr)
+                                print("+ FIXME: saw myself on the database. Harmless, but should not happen.", file=sys.stderr)
                                 pass
                             else:
-                                # print("seen: owncloud client pid=%s name=%s" % (p.pid, p.name()), file=sys.stderr)
+                                # print("+ seen: owncloud client pid=%s name=%s" % (p.pid, p.name()), file=sys.stderr)
                                 pids.append([p.pid, p.name(), db_uid])
                 except:
                     # open_files may fire PermissionError or psutil._exceptions.AccessDenied
                     # on e.g. "gpg-agent", which does not like to be examined.
-                    pass        
+                    pass
         return pids
 
 
@@ -151,18 +152,18 @@ class OCFFS(Operations):
         (id, mtime, size, type) = ("--none--", -1, -1, -1)
         rpath = os.path.relpath(path, os.path.realpath(self.root))
         if rpath[:3] == '../':
-            print("_oc_stat: path=%s is outside root=%s" % (path, os.path.realpath(self.root)), file=sys.stderr)
+            print("+ _oc_stat: path=%s is outside root=%s" % (path, os.path.realpath(self.root)), file=sys.stderr)
             return(id, mtime, size, type)
-            
+
         cur = self.db.cursor()
         cur.execute('SELECT fileid,modtime,filesize,type FROM metadata WHERE path = ?', (rpath,))
         try:
             (id, mtime, size, type) = cur.fetchone()
         except:
-            print("_oc_stat: SELECT failed: FROM metadata WHERE path="+rpath, file=sys.stderr)
+            print("+ _oc_stat: SELECT failed: FROM metadata WHERE path="+rpath, file=sys.stderr)
             pass
         cur.close()	# invalidates cur.
-        # print("_oc_stat: id=%s, mtime=%s, size=%s, type=%s" % (id, mtime, size, type), file=sys.stderr)
+        # print("+ _oc_stat: id=%s, mtime=%s, size=%s, type=%s" % (id, mtime, size, type), file=sys.stderr)
         return(id, mtime, size, type)
 
 
@@ -185,12 +186,12 @@ class OCFFS(Operations):
         """
         rpath = path
         if rpath.endswith(self.virtual_suffix):
-            print("_convert_p2v: is already virtual: path="+rpath, file=sys.stderr)
+            print("+ _convert_p2v: is already virtual: path="+rpath, file=sys.stderr)
             return 0
         if os.path.isdir(rpath):
-            print("_convert_p2v: not implemented on a directory. path="+rpath, file=sys.stderr)
+            print("+ _convert_p2v: not implemented on a directory. path="+rpath, file=sys.stderr)
             return 0
-        print("_convert_p2v: rename '%s' to '%s'" % (rpath, rpath+self.virtual_suffix), file=sys.stderr)
+        print("+ _convert_p2v: rename '%s' to '%s'" % (rpath, rpath+self.virtual_suffix), file=sys.stderr)
         os.rename(rpath, rpath+self.virtual_suffix);
         return 1
 
@@ -205,7 +206,7 @@ class OCFFS(Operations):
         # echo "$cmd" | socat - UNIX-CONNECT:/run/user/1000/testpilotcloud/socket
         rpath = path
         if not rpath.endswith(self.virtual_suffix):
-            print("_convert_v2p: is already physical: path="+rpath, file=sys.stderr)
+            print("+ _convert_v2p: is already physical: path="+rpath, file=sys.stderr)
             return 0
         sock_file = '/run/user/'+str(self.client_uid)+'/'+self.client_executable_shortname+'/socket'
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -214,11 +215,11 @@ class OCFFS(Operations):
             sock.connect(sock_file)
             sock.send(cmd.encode('utf-8'))
         except Exception as e:
-            print("_convert_v2p: send failed: " + str(e), file=sys.stderr)
+            print("+ _convert_v2p: send failed: " + str(e), file=sys.stderr)
         sock.settimeout(0.2)
         seen = sock.recv(1024)
         seen = seen[:seen.rfind(b'\n')].decode('utf-8').split('\n')
-        print("_convert_v2p: received: " + str(seen), file=sys.stderr)
+        print("+ _convert_v2p: received: " + str(seen), file=sys.stderr)
         sock.close()
         return 1
 
@@ -248,6 +249,7 @@ class OCFFS(Operations):
             (id, mtime, size, type) = self._oc_stat(rpath)
             ret['st_size'] = int(size)
             ret['st_mtime'] = int(mtime)
+        print("+ getattr(%s, %s) returns %s" % (rpath, fh, str(ret)), file=sys.stderr)
         return ret
 
     def readdir(self, path, fh):
@@ -265,7 +267,7 @@ class OCFFS(Operations):
     def readlink(self, path):
         rpath,virt = self._oc_path(path)
         if virt:
-            print("readlink virtual files cannot work.", file=sys.stderr)
+            print("+ readlink virtual files cannot work.", file=sys.stderr)
             raise FuseOSError(errno.EREMOTE)
         return os.readlink(rpath, rpath)
 
@@ -298,7 +300,7 @@ class OCFFS(Operations):
     def rename(self, old, new):
         rpath,virt = self._oc_path(old)
         if virt:
-            print("rename virtual files is not supported by owncloud client.", file=sys.stderr)
+            print("+ rename virtual files is not supported by owncloud client.", file=sys.stderr)
             raise FuseOSError(errno.EREMOTE)
         return os.rename(rpath, self._oc_path(new, virt=False)[0])
 
@@ -307,7 +309,7 @@ class OCFFS(Operations):
         # WARN: the link is likely to break into a copy as soon as the client is syncing...
         rpath,virt = self._oc_path(name)
         if virt:
-            print("hard link virtual files cannot work.", file=sys.stderr)
+            print("+ hard link virtual files cannot work.", file=sys.stderr)
             raise FuseOSError(errno.EREMOTE)
         return os.link(self._oc_path(target,virt=False)[0], rpath)
 
@@ -318,37 +320,66 @@ class OCFFS(Operations):
     # ============
 
     def open(self, path, flags):
-        rpath = self._oc_path(path)[0]
-        return os.open(rpath, flags)
+        """
+        filedescriptors are real, when we hit a physical file.
+        filedescriptors are dummies (/dev/null), for virtual files.
+
+        We keep record of our virtual filde descriptors in the vfd table.
+        E.g.
+        - flush() must be mocked away,
+        - release() must know what to do...
+        - store the flags to be checked in read() / write() calls.
+        """
+        rpath,virt = self._oc_path(path)
+        fd = os.open("/dev/null", os.O_RDONLY)
+        self.vfd[fd] = { 'rpath': rpath, 'flags': flags }
+        print("+ open(%s, %s) returns %s" % (rpath,  flags, fd), file=sys.stderr)
+        return fd       # a dummy file descriptor. But uniq. Perfect for indexing into vfd[].
 
     def create(self, path, mode, fi=None):
         rpath = self._oc_path(path, virt=False)[0]
         return os.open(rpath, os.O_WRONLY | os.O_CREAT, mode)
 
     def read(self, path, length, offset, fh):
-        os.lseek(fh, offset, os.SEEK_SET)
-        ## FIXME: what??? Very transparent!!!
-        return os.read(fh, length)
+        print("+ read(%s, %s, %s, %s)" % (path, length, offset, fh), file=sys.stderr)
+        if fh in self.vfd:
+            if offset < 100:
+                return b"go get some coffee\n"
+            return b''
+        else:
+            os.lseek(fh, offset, os.SEEK_SET)
+            return os.read(fh, length)
 
     def write(self, path, buf, offset, fh):
-        os.lseek(fh, offset, os.SEEK_SET)
-        ## FIXME: what??? Very transparent!!!
-        return os.write(fh, buf)
+        print("+ write(%s, '%s', %s, %s, %s)" % (path, buf, offset, fh), file=sys.stderr)
+        if fh in self.vfd:
+            raise FuseOSError(errno.EREMOTE)    # virtual files just cannot be written for now.
+        else:
+            os.lseek(fh, offset, os.SEEK_SET)
+            return os.write(fh, buf)
 
     def truncate(self, path, length, fh=None):
         rpath = self._oc_path(path)[0]
         with open(rpath, 'r+') as f:
             f.truncate(length)
 
+    def fsync(self, path, fdatasync, fh):
+        print("+ fsync(%s, %s, %s) delegates to flush()" % (path, fdatasync, fh), file=sys.stderr)
+        return self.flush(path, fh)
+
     def flush(self, path, fh):
+        print("+ flush(%s, %s)" % (path, fh), file=sys.stderr)
+        if fh in self.vfd:
+            return 0
         return os.fsync(fh)
 
     def release(self, path, fh):
+        print("+ release(%s, %s)" % (path, fh), file=sys.stderr)
+        if fh in self.vfd:
+            print("+  del %s" % (str(self.vfd[fh])), file=sys.stderr)
+            del self.vfd[fh]
+            return os.close(fh)
         return os.close(fh)
-
-    def fsync(self, path, fdatasync, fh):
-        rpath = self._oc_path(path)[0]
-        return self.flush(rpath, fh)
 
     # We add one more key to xattr: 'user.owncloud.virtual'
     # * set the value to b'0' or b'' then the file is physical.
@@ -383,10 +414,10 @@ class OCFFS(Operations):
                 if virt:
                     self._convert_v2p(rpath)
                 else:
-                    print("setxattr nothing to do. path is already physical: "+rpath, file=sys.stderr)
+                    print("+ setxattr nothing to do. path is already physical: "+rpath, file=sys.stderr)
             else:
                 if virt:
-                    print("setxattr nothing to do. path is already virtual: "+rpath, file=sys.stderr)
+                    print("+ setxattr nothing to do. path is already virtual: "+rpath, file=sys.stderr)
                 else:
                     self._convert_p2v(rpath)
             return 0
@@ -400,10 +431,10 @@ def main(root, mountpoint=None):
 
     with OCFFS(root, mountpoint) as ocffs:
         try:
-            FUSE(ocffs, mountpoint, nothreads=True, foreground=True, allow_other=True)
+            FUSE(ocffs, mountpoint, nothreads=True, foreground=True, debug=True, allow_other=True)
         except RuntimeError:
             print(" -- mountpoint %s is only usable for current user." % mountpoint, file=sys.stderr)
-            FUSE(ocffs, mountpoint, nothreads=True, foreground=True, allow_other=False)
+            FUSE(ocffs, mountpoint, nothreads=True, foreground=True, debug=True, allow_other=False)
 
 if __name__ == '__main__':
     main(sys.argv[1], sys.argv[2])

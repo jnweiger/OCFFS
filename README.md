@@ -1,4 +1,4 @@
-# ocffs - A friendly Fuse Filesystem for ownCloud
+# OCFFS - A friendly Fuse Filesystem for ownCloud Clients
 
 Wait, did they say 'virtual files' or 'virtual file system'?
 
