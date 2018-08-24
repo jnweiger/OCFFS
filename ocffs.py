@@ -399,6 +399,7 @@ class OCFFS(Operations):
 
     def getxattr(self, path, name, position=0):
         rpath,virt = self._oc_path(path)
+        print("+ getxattr(%s, %s, %s)" % (rpath, name, position), file=sys.stderr)
         if os.path.isfile(rpath):
             if name == "user.owncloud.virtual":
                 if virt:
