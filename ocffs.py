@@ -457,5 +457,8 @@ def main(root, mountpoint=None):
             FUSE(ocffs, mountpoint, nothreads=True, foreground=True, debug=True, allow_other=False)
 
 if __name__ == '__main__':
+    if len(sys.argv) < 3:
+      print("Usage: %s OC_SHAREFOLDER NEW_MOUNTPOINT" % (sys.argv[0]))
+      sys.exit(1)
     main(sys.argv[1], sys.argv[2])
 

@@ -2,7 +2,7 @@
 
 Wait, did they say 'virtual files' or 'virtual file system'?
 
-Guess what this does:
+Guess what this does when Photos is mounted with OCFFS:
 
     setfattr -n user.owncloud.virtual -v 1 Photos/Paris.jpg
     setfattr -n user.owncloud.virtual -v 0 Photos/Paris.jpg
@@ -18,7 +18,7 @@ time, then disabled folders are gone).
 Files can be now in one of two states, virtual or physical. If an Example.PDF
 file is virtual, an extra suffix is added. It is named
 Example.PDF.owncloud (or Example.PDF.*_virtual for branded clients). Per rename
-of file browser shell integration you can trigger a download, and the
+or file browser shell integration you can trigger a download, and the
 placeholder is removed as soon as the pyhsical file is ready.
 
 Per default all files are virtual, that means the initial sync from server to desktop is blazing fast.
@@ -44,14 +44,14 @@ A virtual file system could improve a lot here:
 
 * Names are always correct. Icons, mimetypes and linked applications are correct.
 * Size, timestamps, permissions and everything are correct.
-* Opening a file while virtual triggers would work as expected, just slower.
+* Opening a file while virtual would work as expected, just slower.
   It triggers a download, and once finished, the file is physical and subsequent reads are fast.
 * Applications that store a recently used list, are no longer confused, when the files become virtual.
 * Give users more flexible tools to switch between virtual and pyhsical and monitor state.
 * Permanent virtual state, even after access.
 
 The prototype defines new filesystem semantics as a suggestion for wider adoption (WIN and OSX clients).
-It gives early adopters the prossibilty to evaluate. Feedback welcome.
+It gives early adopters the possibilty to evaluate. Feedback welcome.
 
 ## Availability
 
@@ -62,9 +62,10 @@ OCFFS is an add on that can be started ontop of any sync folder connection, wher
 
 OCFFS is based on FUSE, a user land filesystem abstraction available in Linux (and OSX, though untested there).
 For the Windows Desktop the Dokan project provides a FUSE-compatible API (also untested).
-The first prototype requires python3 and interacts with the client. Implementations for speed would be built into the desktop client (using C or C++ then).
+The current prototype requires python3 and interacts with the client. Implementations for speed would be built into 
+the desktop client (using C or C++ then).
 
-The first draft is available at https://github.com/jnweiger/OCFFS - please file issues there.
+The prototype implementation is available at https://github.com/jnweiger/OCFFS - please file issues there.
 
 ## Implementation details
 
@@ -72,8 +73,8 @@ These are currently Linux only considerations. OSX and WIN clients may choose
 different ways to implement the same semantics. 
 
 The ownCloud client already presents its files in the local filesystem. OCFFS
-takes that 'lower level view' and represents the same contents as a nicer tree
-of files and folders.  The first prototype uses a second mount point elsewhere
+takes this as a 'lower level view' and represents the same contents as a nicer tree
+of files and folders.  The prototype uses a second mount point elsewhere
 to create that presentation. Which means, the user sees all files twice, --
 that is not good, creating the mountpoint inplace is preferable. We need to
 investigate if that is prossible with the current 'add-on' architecture. It is
@@ -95,16 +96,15 @@ coming from the client. Same can be configured for processes with a special
 effective UID (e.g. euid=0) for debugging.
 
 The client uses inotify in the entire sync folder tree. Being a FUSE file
-system, OCFFS also gets all events its mountpoint, but not necessarily on the
+system, OCFFS also gets all events in its mountpoint, but not necessarily on the
 lower level view. Mounting inplace may or may not interfere with the inotify
 events the client expects to see. To be evaluated.
 
 python-fusepy is an efficient, thin and apparently complete binding on libfuse. 
-It is yet unknown if the self object allows to access 
-the needed PID and UID informations. Switch libfuse to raw_fi mode?
+Switch libfuse to raw_fi mode?
 class fuse_ctx has uid, gid, pid. Also class fuse_context, method fuse_get_context().
 
-Need to access the sqlite database of the client, for the set of "correct" metadata.
+We need to access the sqlite database of the client, for the set of "correct" metadata.
 Sqlite has a global lock. That should do for the prototype code.
 
 Issue: Are we single threaded? Can we handle other filesystem calls, while we 
